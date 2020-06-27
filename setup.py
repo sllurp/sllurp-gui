@@ -27,6 +27,8 @@ test_deps = ['pytest']
 install_deps = [
     'click',
     'monotonic;python_version<"3.3"',
+    'PyQt5==5.14',
+    'pyqtgraph'
 ]
 
 
