@@ -33,17 +33,18 @@ install_deps = [
 
 
 setup(
-    name='sllurp',
-    version=find_version('sllurp', 'version.py'),
-    description='RFID reader control library',
+    name='sllurp_gui',
+    version=find_version('gui', 'version.py'),
+    description='RFID LLRP reader control graphical interface using sllurp',
     long_description=read('README.rst'),
-    author='Ben Ransford',
-    author_email='ben@ransford.org',
-    url='https://github.com/ransford/sllurp',
+    author='Florent Viard',
+    author_email='florent@sodria.com',
+    url='https://github.com/fviard/sllurp-gui',
     license='GPLv3',
     classifiers=[
         'Development Status :: 4 - Beta',
         'Environment :: Console',
+        'Environment :: X11 Applications :: Qt',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
         'Operating System :: OS Independent',
@@ -56,15 +57,16 @@ setup(
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
     ],
-    keywords='llrp rfid reader',
+    keywords='llrp rfid reader gui',
     packages=find_packages(),
     install_requires=install_deps,
     tests_require=test_deps,
     extras_require={'test': test_deps},
     setup_requires=['pytest-runner'],
-    entry_points={
-        'console_scripts': [
-            'sllurp=sllurp.cli:cli',
-        ],
-    },
+    #entry_points={
+    #    'gui_scripts': [
+    #        # TO BE DEFINED
+    #        'sllurp-gui=sllurp_gui.main:main',
+    #    ],
+    #},
 )
