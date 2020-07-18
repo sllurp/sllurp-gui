@@ -39,7 +39,7 @@ class Tag():
         if Tag.start == None:
             Tag.start = datapoint['FirstSeenTimestampUTC']/1000
         self.time.append((datapoint['FirstSeenTimestampUTC']/1000) - Tag.start)
-        self.phase.append(datapoint['ImpinjPhase']*((math.pi*2)/4096))
+        self.phase.append(datapoint['ImpinjRFPhaseAngle']*((math.pi*2)/4096))
         self.doppler.append(datapoint['ImpinjRFDopplerFrequency'])
         self.rssi.append(datapoint['ImpinjPeakRSSI']/100)
         self.channel.append(datapoint['ChannelIndex'])

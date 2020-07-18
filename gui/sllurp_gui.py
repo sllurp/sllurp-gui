@@ -472,6 +472,8 @@ class SllurpGui(QMainWindow):
         self.tagsSpeedBox.setText('Inventory not active - '
             + self.calibratedSwitch.get(self.calibrated))
         for name, tag in tagdict.items():
+            if not no_tags:
+                no_tags = 1
             self.log(str(name) + ' : ' + str(tag.getSize())
                   + '(' + str((tag.getSize()/no_tags)*100) + '%)')
 
