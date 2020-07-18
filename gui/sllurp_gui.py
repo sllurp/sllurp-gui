@@ -4,16 +4,16 @@
 Created by Thijmen Ketel (github.com/thijmenketel) (WTFPL)
 Sllurp gui for easy starting and stopping of inventory, this code is tested and
 mostly used with an Impinj Speedway R420 RFID reader. Due to the extensions used (
-RFPhaseAngle, DopplerFrequency and PeakRSSI) this GUI will only work with older 
+RFPhaseAngle, DopplerFrequency and PeakRSSI) this GUI will only work with older
 readers in legacy mode (file -> llrp settings -> enable legacy mode).
 
 This GUI uses an implementation of the Low Level Reader Protocol in python (see:
-github.com/ransford/sllurp), however a private fork which removes the Twisted 
+github.com/ransford/sllurp), however a private fork which removes the Twisted
 dependency is actually used here (see: github.com/fviard/sllurp/tree/develop_untwisted).
 
-The GUI relies on PyQt5 and pyqtgraph and I would advise using Python 3.6 or higher, 
+The GUI relies on PyQt5 and pyqtgraph and I would advise using Python 3.6 or higher,
 other versions are not guaranteed to work. Also, this software has only been tested on
-a Linux machine (Kubuntu 18.04) so no guarantee that it will work on any other OS (but 
+a Linux machine (Kubuntu 18.04) so no guarantee that it will work on any other OS (but
 as it is just python it probably will).
 
 TODO:
@@ -22,7 +22,7 @@ TODO:
     - Add Y range spinbox
 
 Known issues:
-    - Issues with higher modes than zero (1,2,3), these give weird results (might be 
+    - Issues with higher modes than zero (1,2,3), these give weird results (might be
         backend issue because different encoding: FM0 vs Miller) (phase ambiguity)
     - Rolling view wrecks when a new tag comes in later on (maybe fixed)
 
@@ -424,7 +424,7 @@ class SllurpGui(QMainWindow):
         self.calibratetimer.start()
 
     def calibrateCheck(self):
-        self.tagsSpeedBox.setText('Calibrating...please wait: ' 
+        self.tagsSpeedBox.setText('Calibrating...please wait: '
             + str(len(self.offsets)) + '/50')
         if not self.calibrator.is_alive():
             self.calibratetimer.stop()
@@ -436,7 +436,7 @@ class SllurpGui(QMainWindow):
             self.calibrated = True
             self.infoDialog('Reader finished calibration')
             self.log('Calibration complete')
-            self.tagsSpeedBox.setText('Inventory not active - ' 
+            self.tagsSpeedBox.setText('Inventory not active - '
                 + self.calibratedSwitch.get(self.calibrated))
 
     def startInventory(self):
@@ -573,7 +573,7 @@ class SllurpGui(QMainWindow):
                     if self.llrp_settings['Legacymode']:
                         logfile.write('name,time,rssi,channel\n')
                         for name, tag in tagdict.items():
-                            for t, r, c in zip(tag.getTime(), tag.getRSSI(), 
+                            for t, r, c in zip(tag.getTime(), tag.getRSSI(),
                                             tag.getChannel()):
                                 logfile.write('%s,%f,%u,%u\n' %
                                               (name, t, r, c))
@@ -581,8 +581,8 @@ class SllurpGui(QMainWindow):
                         logfile.write(
                             'name,time,phase,correct,doppler,rssi,channel\n')
                         for name, tag in tagdict.items():
-                            for t, p, c, d, r, f in zip(tag.getTime(), tag.getPhase(), 
-                                                    tag.getCorrect(), tag.getDoppler(), 
+                            for t, p, c, d, r, f in zip(tag.getTime(), tag.getPhase(),
+                                                    tag.getCorrect(), tag.getDoppler(),
                                                     tag.getRSSI(), tag.getChannel()):
                                 logfile.write('%s,%f,%f,%f,%u,%u,%u\n'
                                               % (name, t, p, c, d, r, f))
@@ -646,7 +646,7 @@ class SllurpGui(QMainWindow):
 
     class LlrpThread(threading.Thread):
 
-        def __init__(self, settings, logger, calibrate=False, 
+        def __init__(self, settings, logger, calibrate=False,
             offsets=None, hoptable=None):
             threading.Thread.__init__(self)
             self.settings = settings
@@ -692,8 +692,8 @@ class SllurpGui(QMainWindow):
             self.reader = LLRPReaderClient(self.settings['IP'], 5084, config)
             self.reader.add_disconnected_callback(self.finish_cb)
             if self.calibrate:
-                self.reader.add_tag_report_callback(self.calibrate_cb)    
-                self.caltag = None    
+                self.reader.add_tag_report_callback(self.calibrate_cb)
+                self.caltag = None
                 self.lastphase = 0
                 self.lastchannel = 0
             else:
@@ -727,10 +727,10 @@ class SllurpGui(QMainWindow):
             else:
                 print('no tags seen')
                 return
-        
+
         def calibrate_cb(self, reader, tags):
             '''
-            This needs testing to determine if last phase is more 
+            This needs testing to determine if last phase is more
             accurate or just use delta from last channel
             '''
             if len(tags):
@@ -746,7 +746,7 @@ class SllurpGui(QMainWindow):
                             self.offsets[tags[0]['ChannelIndex']] = \
                                 (tags[0]['ImpinjPhase']*((math.pi*2)/4096))
                             self.lastchannel = tags[0]['ChannelIndex']
-                        elif self.calibrate: 
+                        elif self.calibrate:
                             self.stopInventory()
                             self.calibrate = False
 

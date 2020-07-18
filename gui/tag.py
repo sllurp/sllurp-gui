@@ -28,7 +28,7 @@ class Tag():
 
     def addDataSwitch(self, legacy, datapoint):
         '''
-        If you're operating a reader that does not support Impinj 
+        If you're operating a reader that does not support Impinj
         low level extensions, add data points in legacy mode.
         '''
         if legacy:
@@ -70,22 +70,22 @@ class Tag():
                 if sine:    # testing this, works badly
                     self.correct[-1] = np.sin(2*self.correct[-1])
             self.lastSize = self.getSize()
-    
+
     def removeShiftCalibrated(self, offsets, hoptable):
         '''
         This stuff doesn't seem to work, refer to Tagyro paper for
         theoretical base (page 7, eq. 10 and 11).
         '''
-        missed = self.getSize() - self.lastSize 
+        missed = self.getSize() - self.lastSize
         if missed is not 0:
             for i in range(self.getSize()-missed, self.getSize()):
-                corrected = ((self.phase[i] - offsets.get(self.channel[i])) * 
+                corrected = ((self.phase[i] - offsets.get(self.channel[i])) *
                     (hoptable.get(1)/hoptable.get(self.channel[i])) + offsets.get(1)) % (math.pi*2)
                 if len(self.correct) > 1:
                     self.correct.append(unwrap(self.correct[-1], corrected))
                 else:
                     self.correct.append(corrected)
-            self.lastSize = self.getSize()            
+            self.lastSize = self.getSize()
 
     def phaseDiff(self):
         if self.getSize() > 2:
