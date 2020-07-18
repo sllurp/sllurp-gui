@@ -49,7 +49,6 @@ import time
 import datetime
 import binascii
 
-import numpy as np
 import pyqtgraph as pg
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QIcon
@@ -132,7 +131,7 @@ class SllurpGui(QMainWindow):
         self.stopbtn.setToolTip('Stop inventory')
         self.stopbtn.setStatusTip('Stop inventory')
         self.stopbtn.setEnabled(False)
-        
+
         self.calibratebtn = QPushButton('Calibrate', self)
         self.calibratebtn.clicked.connect(self.calibrateReader)
         self.calibratebtn.setToolTip('(re-)Calibrate reader phase offsets')

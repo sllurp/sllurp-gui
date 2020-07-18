@@ -6,7 +6,6 @@ Use with sllurp python implementation of Low Level Reader Protocol.
 '''
 
 import math
-import numpy as np
 
 class Tag():
 
@@ -68,7 +67,7 @@ class Tag():
                     self.correct.append(
                         (self.phase[i] - self.shift) % (math.pi*2))
                 if sine:    # testing this, works badly
-                    self.correct[-1] = np.sin(2*self.correct[-1])
+                    self.correct[-1] = math.sin(2*self.correct[-1])
             self.lastSize = self.getSize()
 
     def removeShiftCalibrated(self, offsets, hoptable):
