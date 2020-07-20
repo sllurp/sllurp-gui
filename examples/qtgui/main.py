@@ -223,7 +223,7 @@ class Gui(QtCore.QObject):
                 },
             )
             # update config
-            self.reader.llrp.config = LLRPReaderConfig(factory_args)
+            self.reader.update_config(LLRPReaderConfig(factory_args))
             # update internal variable
             self.reader.llrp.parseCapabilities(self.reader.llrp.capabilities)
             # start inventory with update rospec which has been generated with previous config
