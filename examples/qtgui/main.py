@@ -25,8 +25,11 @@ from sllurp.llrp import (C1G2Read, C1G2Write, LLRPReaderClient,
 
 logger.basicConfig(level=logger.INFO)
 
-HOST = "169.254.1.1"
-PORT = 5084
+GUI_APP_TITLE = 'SLLURP GUI - RFID inventory control'
+GUI_ICON_PATH = 'rfid.png'
+GUI_DEFAULT_HOST = '169.254.1.1'
+GUI_DEFAULT_PORT = 5084
+
 DEFAULT_POWER_TABLE = [index for index in range(15, 25, 1)]
 DEFAULT_ANTENNA_LIST = [1]
 readerSettingsParams = [
@@ -83,7 +86,9 @@ class Gui(QObject):
         win = MainWindow()
         self.window = win
 
-        win.setWindowTitle("Sllurp GUI")
+        win.setWindowTitle(GUI_APP_TITLE)
+        win.setWindowIcon(QIcon(GUI_ICON_PATH))
+
         # connect UI events to handlers
         win.setExitHandler(self.exithandler)
         win.connectionButton.clicked.connect(self.connectionEvent)
@@ -155,7 +160,7 @@ class Gui(QObject):
             )
             host = self.host()
             config = LLRPReaderConfig(factory_args)
-            self.reader = LLRPReaderClient(host, PORT, config)
+            self.reader = LLRPReaderClient(host, GUI_DEFAULT_PORT, config)
             self.reader.add_tag_report_callback(self.tag_report_cb)
             self.reader.add_state_callback(LLRPReaderState.STATE_CONNECTED,
                                            self.onConnection)
@@ -164,7 +169,8 @@ class Gui(QObject):
             except:
                 logger.warning("%s Destination Host Unreachable" % host)
                 self.window.showMessageDialog(
-                    "Host Unreachable", "%s Destination Host Unreachable" % host
+                    "Host Unreachable",
+                    "%s Destination Host Unreachable" % host
                 )
                 self.window.connectionButton.setChecked(False)
 
@@ -528,6 +534,12 @@ class MainWindow(QMainWindow):
         self.showMaximized()
         self.connectUIEventToControllerHandler()
 
+        # Create a status bar
+        status_bar = self.statusBar()
+        # To be exported
+        win_status_label = QLabel('')
+        status_bar.addPermanentWidget(win_status_label)
+
         # create central widget/layout
         centralW = QWidget(self)
         centralL = QVBoxLayout(centralW)
@@ -554,9 +566,8 @@ class MainWindow(QMainWindow):
         connectionStatusL = QHBoxLayout(connectionStatusW)
         readerControlL.addWidget(connectionStatusW)
         connectionStatusL.addWidget(QLabel("Connection status",
-                                                     parent=connectionStatusW))
-        self.connectionStatusCheckbox = QCheckBox(
-            parent=connectionStatusW)
+                                           parent=connectionStatusW))
+        self.connectionStatusCheckbox = QCheckBox(parent=connectionStatusW)
         connectionStatusL.addWidget(self.connectionStatusCheckbox)
         self.connectionStatusCheckbox.setDisabled(True)
         self.connectionStatusCheckbox.setChecked(False)
@@ -568,7 +579,7 @@ class MainWindow(QMainWindow):
 
         # create start/stop inventory button
         self.runInventoryButton = QPushButton("Start inventory",
-                                                        parent=readerControlW)
+                                              parent=readerControlW)
         self.runInventoryButton.setCheckable(True)
         readerControlL.addWidget(self.runInventoryButton)
 
@@ -578,8 +589,7 @@ class MainWindow(QMainWindow):
         readerControlL.addWidget(self.clearInventoryButton)
 
         # create reader settings button
-        readerSettingsW = QGroupBox("Reader Settings",
-                                              parent=readerControlW)
+        readerSettingsW = QGroupBox("Reader Settings", parent=readerControlW)
         readerSettingsL = QVBoxLayout(readerSettingsW)
         headerL.addWidget(readerSettingsW)
 
@@ -588,7 +598,7 @@ class MainWindow(QMainWindow):
         ipL = QHBoxLayout(ipW)
         readerSettingsL.addWidget(ipW)
         ipL.addWidget(QLabel("IP Address", parent=ipW))
-        self.hostLineEdit = QLineEdit("192.168.1.116", parent=ipW)
+        self.hostLineEdit = QLineEdit(GUI_DEFAULT_HOST, parent=ipW)
         ipL.addWidget(self.hostLineEdit)
 
         # create antenna parameter widget
