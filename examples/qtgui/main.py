@@ -6,8 +6,16 @@ import pprint
 import sys
 import threading
 
-from PyQt5 import QtCore, QtGui, QtWidgets
-from PyQt5.Qt import QApplication, QStandardItem, QStandardItemModel, QTreeView
+from PyQt5.QtCore import Qt, QObject, pyqtSignal, QTimer, QRegExp, QPoint
+from PyQt5.QtGui import (QIcon, QRegExpValidator, QStandardItem,
+                         QStandardItemModel)
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QMenu,
+                             QDialog, QDialogButtonBox, QTextEdit, QVBoxLayout,
+                             QHBoxLayout, QGroupBox, QPushButton, QLabel,
+                             QCheckBox, QLineEdit, QSlider, QTabWidget,
+                             QPlainTextEdit, QMessageBox, QTreeView, QAction,
+                             QComboBox)
+
 from pyqtgraph import GraphicsLayoutWidget, mkPen
 from pyqtgraph.parametertree import ParameterTree, Parameter
 from signal import SIGINT, SIGTERM, signal
@@ -50,25 +58,25 @@ readerSettingsParams = [
 ]
 
 
-class Gui(QtCore.QObject):
+class Gui(QObject):
     """graphical unit interface to open connection with a LLRP reader
     and inventory tags.
     """
-    inventoryReportReceived = QtCore.pyqtSignal(list)
-    inventoryReportParsed = QtCore.pyqtSignal(list)
-    powerTableChanged = QtCore.pyqtSignal(list)
-    antennaIDListChanged = QtCore.pyqtSignal(list)
-    readerConfigChanged = QtCore.pyqtSignal()
+    inventoryReportReceived = pyqtSignal(list)
+    inventoryReportParsed = pyqtSignal(list)
+    powerTableChanged = pyqtSignal(list)
+    antennaIDListChanged = pyqtSignal(list)
+    readerConfigChanged = pyqtSignal()
 
     def __init__(self):
-        QtCore.QObject.__init__(self)
+        super(Gui, self).__init__()
         # variables
         self.knownTagList = []
         self.lock = threading.Lock()
         self.reader = None
         self.readerParam = Parameter.create(
             name='params', type='group', children=readerSettingsParams)
-        self.txPowerChangedTimer = QtCore.QTimer()
+        self.txPowerChangedTimer = QTimer()
         self.txPowerChangedTimer.timeout.connect(self.readerConfigChangedEvent)
         self.txPowerChangedTimer.setSingleShot(True)
         # ui
@@ -316,20 +324,20 @@ class Gui(QtCore.QObject):
         """called when the user clicks on the button to open the reader
         advanced settings
         """
-        dlg = QtWidgets.QDialog()
+        dlg = QDialog()
         dlg.resize(800, 500)
         dlg.setWindowTitle("Reader Settings")
-        QBtn = QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
-        layout = QtWidgets.QVBoxLayout()
+        QBtn = QDialogButtonBox.Ok | QDialogButtonBox.Cancel
+        layout = QVBoxLayout()
         paramTree = ParameterTree(showHeader=False)
         layout.addWidget(paramTree)
-        textBox = QtWidgets.QTextEdit()
+        textBox = QTextEdit()
         textBox.setReadOnly(True)
         textBox.value = lambda: str(textBox.toPlainText())
         textBox.setValue = textBox.setPlainText
         textBox.sigChanged = textBox.textChanged
         layout.addWidget(textBox)
-        buttonBox = QtWidgets.QDialogButtonBox(QBtn)
+        buttonBox = QDialogButtonBox(QBtn)
         buttonBox.accepted.connect(dlg.accept)
         buttonBox.rejected.connect(dlg.reject)
         layout.addWidget(buttonBox)
@@ -509,9 +517,9 @@ class Gui(QtCore.QObject):
         return list_value
 
 
-class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self):
-        QtWidgets.QMainWindow.__init__(self)
+class MainWindow(QMainWindow):
+    def __init__(self, *args, **kwargs):
+        super(MainWindow, self).__init__(*args, **kwargs)
         self.exithandler = None
 
         # workaround to fix showMaximized on Windows
@@ -521,99 +529,99 @@ class MainWindow(QtWidgets.QMainWindow):
         self.connectUIEventToControllerHandler()
 
         # create central widget/layout
-        centralW = QtWidgets.QWidget(self)
-        centralL = QtWidgets.QVBoxLayout(centralW)
+        centralW = QWidget(self)
+        centralL = QVBoxLayout(centralW)
         self.setCentralWidget(centralW)
 
         # create header widget/layout
-        headerW = QtWidgets.QWidget(parent=centralW)
-        headerL = QtWidgets.QHBoxLayout(headerW)
+        headerW = QWidget(parent=centralW)
+        headerL = QHBoxLayout(headerW)
         centralL.addWidget(headerW)
 
         # create reader controls panel
-        readerControlW = QtWidgets.QGroupBox("Reader Controls", parent=headerW)
-        readerControlL = QtWidgets.QVBoxLayout(readerControlW)
+        readerControlW = QGroupBox("Reader Controls", parent=headerW)
+        readerControlL = QVBoxLayout(readerControlW)
         headerL.addWidget(readerControlW)
 
         # create connect/disconnect button
-        self.connectionButton = QtWidgets.QPushButton("Connect",
+        self.connectionButton = QPushButton("Connect",
                                                       parent=readerControlW)
         self.connectionButton.setCheckable(True)
         readerControlL.addWidget(self.connectionButton)
 
         # create connection status widget
-        connectionStatusW = QtWidgets.QWidget(parent=readerControlW)
-        connectionStatusL = QtWidgets.QHBoxLayout(connectionStatusW)
+        connectionStatusW = QWidget(parent=readerControlW)
+        connectionStatusL = QHBoxLayout(connectionStatusW)
         readerControlL.addWidget(connectionStatusW)
-        connectionStatusL.addWidget(QtWidgets.QLabel("Connection status",
+        connectionStatusL.addWidget(QLabel("Connection status",
                                                      parent=connectionStatusW))
-        self.connectionStatusCheckbox = QtWidgets.QCheckBox(
+        self.connectionStatusCheckbox = QCheckBox(
             parent=connectionStatusW)
         connectionStatusL.addWidget(self.connectionStatusCheckbox)
         self.connectionStatusCheckbox.setDisabled(True)
         self.connectionStatusCheckbox.setChecked(False)
 
         # create open advanced reader settings
-        self.openAdvancedReaderConfigButton = QtWidgets.QPushButton(
+        self.openAdvancedReaderConfigButton = QPushButton(
             "Open advanced settings", parent=readerControlW)
         readerControlL.addWidget(self.openAdvancedReaderConfigButton)
 
         # create start/stop inventory button
-        self.runInventoryButton = QtWidgets.QPushButton("Start inventory",
+        self.runInventoryButton = QPushButton("Start inventory",
                                                         parent=readerControlW)
         self.runInventoryButton.setCheckable(True)
         readerControlL.addWidget(self.runInventoryButton)
 
         # create clear inventory button
-        self.clearInventoryButton = QtWidgets.QPushButton(
+        self.clearInventoryButton = QPushButton(
             "Clear inventory report", parent=readerControlW)
         readerControlL.addWidget(self.clearInventoryButton)
 
         # create reader settings button
-        readerSettingsW = QtWidgets.QGroupBox("Reader Settings",
+        readerSettingsW = QGroupBox("Reader Settings",
                                               parent=readerControlW)
-        readerSettingsL = QtWidgets.QVBoxLayout(readerSettingsW)
+        readerSettingsL = QVBoxLayout(readerSettingsW)
         headerL.addWidget(readerSettingsW)
 
         # create ip parameter widget
-        ipW = QtWidgets.QWidget(parent=readerSettingsW)
-        ipL = QtWidgets.QHBoxLayout(ipW)
+        ipW = QWidget(parent=readerSettingsW)
+        ipL = QHBoxLayout(ipW)
         readerSettingsL.addWidget(ipW)
-        ipL.addWidget(QtWidgets.QLabel("IP Address", parent=ipW))
-        self.hostLineEdit = QtWidgets.QLineEdit("192.168.1.116", parent=ipW)
+        ipL.addWidget(QLabel("IP Address", parent=ipW))
+        self.hostLineEdit = QLineEdit("192.168.1.116", parent=ipW)
         ipL.addWidget(self.hostLineEdit)
 
         # create antenna parameter widget
-        antW = QtWidgets.QWidget(parent=readerSettingsW)
-        antL = QtWidgets.QHBoxLayout(antW)
+        antW = QWidget(parent=readerSettingsW)
+        antL = QHBoxLayout(antW)
         readerSettingsL.addWidget(antW)
-        antL.addWidget(QtWidgets.QLabel("Antenna", parent=antW))
-        self.antennaComboBox = QtWidgets.QComboBox(parent=antW)
+        antL.addWidget(QLabel("Antenna", parent=antW))
+        self.antennaComboBox = QComboBox(parent=antW)
         antL.addWidget(self.antennaComboBox)
 
         # create power parameter widget
-        powerW = QtWidgets.QWidget(parent=readerSettingsW)
-        powerL = QtWidgets.QHBoxLayout(powerW)
+        powerW = QWidget(parent=readerSettingsW)
+        powerL = QHBoxLayout(powerW)
         readerSettingsL.addWidget(powerW)
-        self.powerLabel = QtWidgets.QLabel("TX Power (dB)", parent=powerW)
+        self.powerLabel = QLabel("TX Power (dB)", parent=powerW)
         powerL.addWidget(self.powerLabel)
-        self.powerSlider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.powerSlider = QSlider(Qt.Horizontal)
         powerL.addWidget(self.powerSlider)
-        self.powerSlider.setTickPosition(QtWidgets.QSlider.TicksBelow)
+        self.powerSlider.setTickPosition(QSlider.TicksBelow)
         self.powerSlider.setMinimum(0)
         self.powerSlider.setMaximum(1)
         self.powerSlider.setValue(0)
         self.powerSlider.setSingleStep(1)
 
         # create tag filter mask parameter widget
-        tagFilterMaskW = QtWidgets.QWidget(parent=readerSettingsW)
-        tagFilterMaskL = QtWidgets.QHBoxLayout(tagFilterMaskW)
+        tagFilterMaskW = QWidget(parent=readerSettingsW)
+        tagFilterMaskL = QHBoxLayout(tagFilterMaskW)
         readerSettingsL.addWidget(tagFilterMaskW)
-        tagFilterMaskL.addWidget(QtWidgets.QLabel(
+        tagFilterMaskL.addWidget(QLabel(
             "Tag Filter Mask", parent=tagFilterMaskW))
-        self.tagFilterMasklineEdit = QtWidgets.QLineEdit(parent=tagFilterMaskW)
+        self.tagFilterMasklineEdit = QLineEdit(parent=tagFilterMaskW)
         tagFilterMaskL.addWidget(self.tagFilterMasklineEdit)
-        validator = QtGui.QRegExpValidator(QtCore.QRegExp("[0-9A-Fa-f,]+"))
+        validator = QRegExpValidator(QRegExp("[0-9A-Fa-f,]+"))
         self.tagFilterMasklineEdit.setValidator(validator)
 
         # Create body/content tabbed widget
@@ -622,10 +630,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def create_tabbed_body(self, parent_widget):
         # create bottom widget/layout
-        tabbed_body_w = QtWidgets.QGroupBox("Inventory", parent=parent_widget)
-        inventoryL = QtWidgets.QVBoxLayout(tabbed_body_w)
+        tabbed_body_w = QGroupBox("Inventory", parent=parent_widget)
+        inventoryL = QVBoxLayout(tabbed_body_w)
 
-        tabs_w = QtWidgets.QTabWidget(parent=tabbed_body_w)
+        tabs_w = QTabWidget(parent=tabbed_body_w)
         inventoryL.addWidget(tabs_w)
 
         # Add widget tabs
@@ -655,18 +663,18 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Set model to view
         treeview.setModel(self.listModel)
-        treeview.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        treeview.setContextMenuPolicy(Qt.CustomContextMenu)
         treeview.customContextMenuRequested.connect(self.openMenu)
 
         self.treeview = treeview
         return treeview
 
     def create_advanced_graph_tab(self, parent_widget):
-        adv_graph_w = QtWidgets.QWidget(parent=parent_widget)
-        adv_graph_l = QtWidgets.QHBoxLayout(adv_graph_w)
+        adv_graph_w = QWidget(parent=parent_widget)
+        adv_graph_l = QHBoxLayout(adv_graph_w)
 
         # Create graph menu
-        button_layout = QtWidgets.QVBoxLayout()
+        button_layout = QVBoxLayout()
         """
         buttonlayout.addWidget(self.startbtn)
         buttonlayout.addWidget(self.stopbtn)
@@ -694,7 +702,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def create_logs_tab(self, parent_widget):
         # Create a logs box
-        logger_box_w = QtWidgets.QPlainTextEdit()
+        logger_box_w = QPlainTextEdit()
         logger_box_w.setReadOnly(True)
 
         self.logger_box = logger_box_w
@@ -727,20 +735,20 @@ class MainWindow(QtWidgets.QMainWindow):
         signal(SIGTERM, self.keyboadInterruptHandler)
 
     def showMessageDialog(self, title, message):
-        msg = QtWidgets.QMessageBox()
+        msg = QMessageBox()
         msg.setWindowTitle(title)
         msg.setText(message)
-        msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
+        msg.setStandardButtons(QMessageBox.Ok)
         msg.exec_()
         del msg
 
     def openMenu(self, pos):
-        action = QtGui.QAction(QtGui.QIcon(""), "copy", self)
+        action = QAction(QIcon(""), "copy", self)
         action.triggered.connect(
             lambda: self.itemValueToClipboard(self.treeview.indexAt(pos)))
-        menu = QtWidgets.QMenu()
+        menu = QMenu()
         menu.addAction(action)
-        pt = QtCore.QPoint(pos)
+        pt = QPoint(pos)
         menu.exec(self.treeview.mapToGlobal(pos))
 
     def itemValueToClipboard(self, index):
@@ -749,6 +757,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
 if __name__ == "__main__":
-    app = QtWidgets.QApplication(sys.argv)
+    app = QApplication(sys.argv)
     gui = Gui()
     sys.exit(app.exec_())
