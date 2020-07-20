@@ -77,8 +77,9 @@ class Gui(QObject):
         self.knownTagList = []
         self.lock = threading.Lock()
         self.reader = None
-        self.readerParam = Parameter.create(
-            name='params', type='group', children=readerSettingsParams)
+        self.readerParam = Parameter.create(name='params',
+                                            type='group',
+                                            children=readerSettingsParams)
         self.txPowerChangedTimer = QTimer()
         self.txPowerChangedTimer.timeout.connect(self.readerConfigChangedEvent)
         self.txPowerChangedTimer.setSingleShot(True)
@@ -124,24 +125,20 @@ class Gui(QObject):
         """
         logger.info("connecting...")
         if not self.isConnected():
-            duration = (
-                None
-                if self.readerParam.param("time").value() == 0.0
-                else self.readerParam.param("time").value()
-            )
+            r_param_fn = self.readerParam.param
+            duration_time = r_param_fn("time").value()
+            duration = None if duration_time == 0.0 else duration_time
             factory_args = dict(
                 duration=duration,
-                report_every_n_tags=self.readerParam.param(
-                    "report_every_n_tags").value(),
+                report_every_n_tags=r_param_fn("report_every_n_tags").value(),
                 antennas=(DEFAULT_ANTENNA_LIST[0],),
                 tx_power={
                     DEFAULT_ANTENNA_LIST[0]: 0
                 },  # index of the power table to set the minimal power available
-                tari=self.readerParam.param("tari").value(),
-                session=self.readerParam.param("session").value(),
+                tari=r_param_fn("tari").value(),
+                session=r_param_fn("session").value(),
                 # mode_identifier=args.mode_identifier,
-                tag_population=self.readerParam.param(
-                    "tag_population").value(),
+                tag_population=r_param_fn("tag_population").value(),
                 start_inventory=False,
                 # disconnect_when_done=True,
                 # tag_filter_mask=args.tag_filter_mask
@@ -166,8 +163,8 @@ class Gui(QObject):
                                            self.onConnection)
             try:
                 self.reader.connect()
-            except:
-                logger.warning("%s Destination Host Unreachable" % host)
+            except Exception:
+                logger.warning("%s Destination Host Unreachable", host)
                 self.window.showMessageDialog(
                     "Host Unreachable",
                     "%s Destination Host Unreachable" % host
@@ -197,11 +194,12 @@ class Gui(QObject):
         """
         if self.isConnected():
             logger.info("inventoring...")
-            if duration is None and self.readerParam.param("time").value() > 0.0:
-                duration = self.readerParam.param("time").value()
+            r_param_fn = self.readerParam.param
+            if duration is None and r_param_fn("time").value() > 0.0:
+                duration = r_param_fn("time").value()
             if report_every_n_tags is None:
                 report_every_n_tags = \
-                    self.readerParam.param("report_every_n_tags").value()
+                    r_param_fn("report_every_n_tags").value()
             if antennas is None:
                 antennas = (self.currentAntennaId(),)
             if tx_power is None:
@@ -209,15 +207,15 @@ class Gui(QObject):
                     self.currentAntennaId(): self.currentPower()
                 }
             if tari is None:
-                tari = self.readerParam.param("tari").value()
+                tari = r_param_fn("tari").value()
             if session is None:
-                session = self.readerParam.param("session").value()
+                session = r_param_fn("session").value()
             if mode_identifier is None:
                 mode_identifier = \
-                    self.readerParam.param("mode_identifier").value()
+                    r_param_fn("mode_identifier").value()
             if tag_population is None:
                 tag_population = \
-                    self.readerParam.param("tag_population").value()
+                    r_param_fn("tag_population").value()
             if tag_filter_mask is None:
                 tag_filter_mask = self.currentTagFilterMask()
 
@@ -275,10 +273,8 @@ class Gui(QObject):
         It is run on the QT loop to avoid GUI freezing.
         """
         tagList = []  # use to display all tags on the window
-        logger.info(
-            str(tags) + " tag_filter_mask=<" +
-            str(self.reader.llrp.config.tag_filter_mask) + ">"
-        )
+        logger.info('%s tag_filter_mask=<%s>', str(tags),
+                    str(self.reader.llrp.config.tag_filter_mask))
         epc = None
         # parsing each tag in the report
         for tag in tags:
@@ -291,8 +287,8 @@ class Gui(QObject):
                 epc = tag["EPCData"]["EPC"].decode("utf-8")
                 strepc = tag["EPCData"]["EPC"]
             else:
-                logger.warning(
-                    "Unknown inventory report fomartting:%s" % str(tags))
+                logger.warning("Unknown inventory report fomartting:%s",
+                               str(tags))
             # append tag seen in the list
             tagList.append((epc, tag["TagSeenCount"]))
             # # parse data if it is an OpSpec report
