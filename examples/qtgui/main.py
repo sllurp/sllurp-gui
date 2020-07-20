@@ -1,7 +1,6 @@
 import initExample  # just to work with sllurp of this repo
 import sys
 import logging as logger
-import logging as logger
 import os
 import pprint
 import sys
@@ -9,6 +8,7 @@ import threading
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.Qt import QApplication, QStandardItem, QStandardItemModel, QTreeView
+from pyqtgraph import GraphicsLayoutWidget, mkPen
 from pyqtgraph.parametertree import ParameterTree, Parameter
 from signal import SIGINT, SIGTERM, signal
 
@@ -616,20 +616,34 @@ class MainWindow(QtWidgets.QMainWindow):
         validator = QtGui.QRegExpValidator(QtCore.QRegExp("[0-9A-Fa-f,]+"))
         self.tagFilterMasklineEdit.setValidator(validator)
 
+        # Create body/content tabbed widget
+        tabbed_body_w = self.create_tabbed_body(centralW)
+        centralL.addWidget(tabbed_body_w)
+
+    def create_tabbed_body(self, parent_widget):
         # create bottom widget/layout
-        bottomW = QtWidgets.QWidget(parent=centralW)
-        bottomL = QtWidgets.QHBoxLayout(bottomW)
-        centralL.addWidget(bottomW)
+        tabbed_body_w = QtWidgets.QGroupBox("Inventory", parent=parent_widget)
+        inventoryL = QtWidgets.QVBoxLayout(tabbed_body_w)
 
-        # create inventory panel
-        inventoryW = QtWidgets.QGroupBox("Inventory", parent=bottomW)
-        inventoryL = QtWidgets.QVBoxLayout(inventoryW)
-        bottomL.addWidget(inventoryW)
+        tabs_w = QtWidgets.QTabWidget(parent=tabbed_body_w)
+        inventoryL.addWidget(tabs_w)
 
-        # inventory tree view
-        treeview = QTreeView(parent=inventoryW)
-        self.treeview = treeview
-        inventoryL.addWidget(treeview)
+        # Add widget tabs
+        inventory_tab = self.create_inventory_tags_tab(tabs_w)
+        tabs_w.addTab(inventory_tab, 'Inventory tag reads')
+
+        adv_graph_tab = self.create_advanced_graph_tab(tabs_w)
+        tabs_w.addTab(adv_graph_tab, 'Advanced Graph')
+
+        log_tab = self.create_logs_tab(tabs_w)
+        tabs_w.addTab(log_tab, 'Operation Log')
+
+
+        return tabbed_body_w
+
+    def create_inventory_tags_tab(self, parent_widget):
+        # Inventory tree view
+        treeview = QTreeView(parent=parent_widget)
 
         # Operation list model
         self.listModel = QStandardItemModel(treeview)
@@ -644,8 +658,50 @@ class MainWindow(QtWidgets.QMainWindow):
         treeview.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         treeview.customContextMenuRequested.connect(self.openMenu)
 
-    def element(self, name):
-        return self.centralUI.element(name)
+        self.treeview = treeview
+        return treeview
+
+    def create_advanced_graph_tab(self, parent_widget):
+        adv_graph_w = QtWidgets.QWidget(parent=parent_widget)
+        adv_graph_l = QtWidgets.QHBoxLayout(adv_graph_w)
+
+        # Create graph menu
+        button_layout = QtWidgets.QVBoxLayout()
+        """
+        buttonlayout.addWidget(self.startbtn)
+        buttonlayout.addWidget(self.stopbtn)
+        buttonlayout.addWidget(self.calibratebtn)
+        buttonlayout.addLayout(selectlayout)
+        buttonlayout.addWidget(self.gridcheckx)
+        buttonlayout.addWidget(self.gridchecky)
+        buttonlayout.addWidget(self.rollgraph)
+        buttonlayout.addWidget(self.restorebtn)
+        buttonlayout.addWidget(self.cleardatbtn)
+        buttonlayout.addWidget(self.exportbtn)
+        buttonlayout.addStretch()
+        buttonlayout.addWidget(self.qbtn)
+        """
+
+        # Create graph main dipslay
+        graph_w = GraphicsLayoutWidget()
+        graph_w.setBackground('w')
+        dataplot = graph_w.addPlot()
+
+        adv_graph_l.addLayout(button_layout, 1)
+        adv_graph_l.addWidget(graph_w, 5)
+
+        return adv_graph_w
+
+    def create_logs_tab(self, parent_widget):
+        # Create a logs box
+        logger_box_w = QtWidgets.QPlainTextEdit()
+        logger_box_w.setReadOnly(True)
+
+        self.logger_box = logger_box_w
+        return logger_box_w
+
+    #def element(self, name):
+    #    return self.centralUI.element(name)
 
     def setExitHandler(self, handler):
         self.exithandler = handler
