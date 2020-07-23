@@ -1,27 +1,29 @@
 import initExample  # just to work with sllurp of this repo
-import sys
+import datetime
 import logging as logger
 import os
 import pprint
 import sys
 import threading
 
-from PyQt5.QtCore import Qt, QObject, pyqtSignal, QTimer, QRegExp, QPoint
+from PyQt5.QtCore import (Qt, QObject, pyqtSignal, QTimer, QRegExp, QPoint,
+                          QAbstractTableModel)
 from PyQt5.QtGui import (QIcon, QRegExpValidator, QStandardItem,
                          QStandardItemModel)
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QMenu,
                              QDialog, QDialogButtonBox, QTextEdit, QVBoxLayout,
                              QHBoxLayout, QGroupBox, QPushButton, QLabel,
                              QCheckBox, QLineEdit, QSlider, QTabWidget,
-                             QPlainTextEdit, QMessageBox, QTreeView, QAction,
-                             QComboBox)
+                             QPlainTextEdit, QMessageBox, QTableView,
+                             QAction, QComboBox)
 
 from pyqtgraph import GraphicsLayoutWidget, mkPen
 from pyqtgraph.parametertree import ParameterTree, Parameter
 from signal import SIGINT, SIGTERM, signal
+from time import monotonic
 
 from sllurp.llrp import (C1G2Read, C1G2Write, LLRPReaderClient,
-                         LLRPReaderConfig, LLRPReaderState)
+                         LLRPReaderConfig, LLRPReaderState, llrp_data2xml)
 
 logger.basicConfig(level=logger.INFO)
 
@@ -29,6 +31,11 @@ GUI_APP_TITLE = 'SLLURP GUI - RFID inventory control'
 GUI_ICON_PATH = 'rfid.png'
 GUI_DEFAULT_HOST = '169.254.1.1'
 GUI_DEFAULT_PORT = 5084
+
+TAGS_TABLE_HEADERS = ["EPC", "Antenna", "Best\nRSSI", "First\nChannel",
+                      "Tag Seen\nCount", "Last\nRSSI", "Last\nChannel"]
+TAGS_TABLE_COLUMNS = ['epc', 'antenna_id', 'rssi', 'channel_index',
+                      'seen_count', 'last_rssi', 'last_channel_index']
 
 DEFAULT_POWER_TABLE = [index for index in range(15, 25, 1)]
 DEFAULT_ANTENNA_LIST = [1]
@@ -48,33 +55,164 @@ readerSettingsParams = [
     }, {
         'name': 'session',
         'title': 'Session (Gen2 session (default 2))',
-        'type': 'int', 'value': 2
+        'type': 'list', 'values': [0, 1, 2, 3],
+        'value': 2
     }, {
         'name': 'mode_identifier',
         'title': 'Mode identifier (ModeIdentifier value)',
-        'type': 'int', 'value': 2
+        'type': 'list', 'values': [0, 1, 2, 3],
+        'value': 2
     }, {
         'name': 'tag_population',
         'title': 'Tag population (Tag Population value (default 4))',
         'type': 'int', 'value': 4
-    },
+    }, {
+        'name': 'frequencies',
+        'title': 'Frequencies to use (Comma-separated; 0=all; default 1)',
+        'type': 'str', 'value': '1'
+    }, {
+        'name': 'impinj_extensions',
+        'title': 'Impinj readers extensions',
+        'type': 'group',
+        'expanded': True,
+        'children': [
+            {
+                'name': 'enable',
+                'title': 'Enable Impinj extensions',
+                'type': 'bool',
+                'value': False
+            }, {
+                'name': 'search_mode',
+                'title': 'Impinj search mode',
+                'type': 'list',
+                'values': ['single', 'dual'],
+                'value': 'single'
+            }
+        ]
+    }, {
+        'name': 'zebra_extensions',
+        'title': 'Zebra readers extensions',
+        'type': 'group',
+        'expanded': True,
+        'children': [
+            {
+                'name': 'enable',
+                'title': 'Enable Zebra extensions',
+                'type': 'bool',
+                'value': False
+            }
+        ]
+
+    }
 ]
 
+
+class TagsTableModel(QAbstractTableModel):
+
+    def __init__(self, data):
+        super(TagsTableModel, self).__init__()
+        self._data = data
+        self._data_vals = list(data.values())
+
+    def update(self, data):
+        self._data = data
+        self._data_vals = list(data.values())
+        #self.dataChanged.emit(self.createIndex(0, 0),
+        #                      self.createIndex(self.rowCount(),
+        #                                       self.columnCount()))
+        self.layoutChanged.emit()
+
+    def data(self, index, role):
+        if role == Qt.DisplayRole:
+            # See below for the nested-list data structure.
+            # .row() indexes into the outer list,
+            # .column() indexes into the sub-list
+            return self._data_vals\
+                [index.row()].get(TAGS_TABLE_COLUMNS[index.column()], '')
+        elif role == Qt.TextAlignmentRole:
+            return Qt.AlignVCenter | Qt.AlignRight
+
+    def headerData(self, section, orientation, role):
+        if role == Qt.DisplayRole:
+            if orientation == Qt.Horizontal:
+                return TAGS_TABLE_HEADERS[section]
+
+            if orientation == Qt.Vertical:
+                ## Alternative to have line number as row headers
+                #return str(section)
+                ## No row headers
+                return ''
+
+    def rowCount(self, index):
+        # The length of the outer list.
+        return len(self._data)
+
+    def columnCount(self, index):
+        # The following takes the first sub-list, and returns
+        # the length (only works if all rows are an equal length)
+        #if not self._data:
+        #    return 0
+        return len(TAGS_TABLE_COLUMNS)
+
+
+class ReadSpeedCounter:
+    def __init__(self, size, default_val=0):
+        self._size = size
+        self._pos = -size
+        now = monotonic()
+        self._prev_time = [now for _ in range(size)]
+        self._prev_value = [default_val for _ in range(size)]
+
+    def get_speed(self, new_value):
+        now = monotonic()
+        size = self._size
+        cur_pos = self._pos
+        if cur_pos >= 0:
+            ref_pos = (cur_pos + 1) % size
+            prev_time = self._prev_time[ref_pos]
+            prev_val = self._prev_value[ref_pos]
+        elif cur_pos < 0:
+            prev_time = self._prev_time[self._size - 1]
+            prev_val = self._prev_value[self._size - 1]
+            ref_pos = cur_pos + 1
+
+        runtime = now - prev_time
+        speed = float((new_value - prev_val) / runtime)
+
+        self._pos = ref_pos
+        self._prev_time[ref_pos] = now
+        self._prev_value[ref_pos] = new_value
+
+        return speed
+
+    def reset(self, default_val=0):
+        size = self._size
+        self._pos = -size
+        now = monotonic()
+        self._prev_time = [now for _ in range(size)]
+        self._prev_value = [default_val for _ in range(size)]
 
 class Gui(QObject):
     """graphical unit interface to open connection with a LLRP reader
     and inventory tags.
     """
-    inventoryReportReceived = pyqtSignal(list)
-    inventoryReportParsed = pyqtSignal(list)
+    inventoryReportReceived = pyqtSignal(set)
+    inventoryReportParsed = pyqtSignal(set)
     powerTableChanged = pyqtSignal(list)
     antennaIDListChanged = pyqtSignal(list)
     readerConfigChanged = pyqtSignal()
+    readerConnected = pyqtSignal()
 
     def __init__(self):
         super(Gui, self).__init__()
         # variables
         self.knownTagList = []
+        self.reader_start_time = None
+        self.total_tags_seen = 0
+        self.recently_updated_tag_keys = set()
+        self.tags_db = {}
+        self.speed_counter = ReadSpeedCounter(6)
+
         self.lock = threading.Lock()
         self.reader = None
         self.readerParam = Parameter.create(name='params',
@@ -83,6 +221,11 @@ class Gui(QObject):
         self.txPowerChangedTimer = QTimer()
         self.txPowerChangedTimer.timeout.connect(self.readerConfigChangedEvent)
         self.txPowerChangedTimer.setSingleShot(True)
+
+        self.tags_table_refresh_timer = QTimer()
+        self.tags_table_refresh_timer.timeout.connect(
+            self.updateInventoryReport)
+
         # ui
         win = MainWindow()
         self.window = win
@@ -113,10 +256,11 @@ class Gui(QObject):
 
         self.inventoryReportReceived.connect(self.parseInventoryReport)
         # connect event to handlers
-        self.inventoryReportParsed.connect(self.updateInventoryReport)
+        #self.inventoryReportParsed.connect(self.updateInventoryReport)
         self.powerTableChanged.connect(self.updatePowerTableParameterUI)
         self.antennaIDListChanged.connect(self.updateAntennaParameterUI)
         self.readerConfigChanged.connect(self.readerConfigChangedEvent)
+        self.readerConnected.connect(self.reader_connected_event)
 
         self.resetWindowWidgets()
 
@@ -154,13 +298,37 @@ class Gui(QObject):
                     "EnableTagSeenCount": True,
                     "EnableAccessSpecID": True,
                 },
+                event_selector={
+                    'HoppingEvent': False,
+                    'GPIEvent': False,
+                    'ROSpecEvent': True,
+                    'ReportBufferFillWarning': True,
+                    'ReaderExceptionEvent': True,
+                    'RFSurveyEvent': False,
+                    'AISpecEvent': True,
+                    'AISpecEventWithSingulation': False,
+                    'AntennaEvent': False,
+                },
             )
+            impinj_ext_fn = r_param_fn('impinj_extensions').param
+            if impinj_ext_fn('enable').value():
+                search_mode = impinj_ext_fn('search_mode').value()
+                search_mode_val = (search_mode == 'dual') and 2 or 1
+                factory_args['impinj_search_mode'] = search_mode_val
+
+                factory_args['impinj_tag_content_selector'] = {
+                    'EnableRFPhaseAngle': True,
+                    'EnablePeakRSSI': True,
+                    'EnableRFDopplerFrequency': True
+                }
+
             host = self.host()
             config = LLRPReaderConfig(factory_args)
             self.reader = LLRPReaderClient(host, GUI_DEFAULT_PORT, config)
             self.reader.add_tag_report_callback(self.tag_report_cb)
             self.reader.add_state_callback(LLRPReaderState.STATE_CONNECTED,
                                            self.onConnection)
+            self.reader.add_event_callback(self.reader_event_cb)
             try:
                 self.reader.connect()
             except Exception:
@@ -234,15 +402,39 @@ class Gui(QObject):
                     "EnableROSpecID": False,
                     "EnableSpecIndex": False,
                     "EnableInventoryParameterSpecID": False,
-                    "EnableAntennaID": False,
-                    "EnableChannelIndex": False,
-                    "EnablePeakRSSI": False,
-                    "EnableFirstSeenTimestamp": False,
-                    "EnableLastSeenTimestamp": False,
+                    "EnableAntennaID": True,
+                    "EnableChannelIndex": True,
+                    "EnablePeakRSSI": True,
+                    "EnableFirstSeenTimestamp": True,
+                    "EnableLastSeenTimestamp": True,
                     "EnableTagSeenCount": True,
                     "EnableAccessSpecID": True,
                 },
+                event_selector={
+                    'HoppingEvent': False,
+                    'GPIEvent': False,
+                    'ROSpecEvent': True,
+                    'ReportBufferFillWarning': True,
+                    'ReaderExceptionEvent': True,
+                    'RFSurveyEvent': False,
+                    'AISpecEvent': True,
+                    'AISpecEventWithSingulation': False,
+                    'AntennaEvent': False,
+                },
             )
+
+            impinj_ext_fn = r_param_fn('impinj_extensions').param
+            if impinj_ext_fn('enable').value():
+                search_mode = impinj_ext_fn('search_mode').value()
+                search_mode_val = (search_mode == 'dual') and 2 or 1
+                factory_args['impinj_search_mode'] = search_mode_val
+
+                factory_args['impinj_tag_content_selector'] = {
+                    'EnableRFPhaseAngle': True,
+                    'EnablePeakRSSI': True,
+                    'EnableRFDopplerFrequency': True
+                }
+
             # update config
             self.reader.update_config(LLRPReaderConfig(factory_args))
             # update internal variable
@@ -252,62 +444,129 @@ class Gui(QObject):
             self.reader.llrp.startInventory(force_regen_rospec=True)
             self.reader.join(0.1)
 
+            self.tags_table_refresh_timer.start(1000)
+
     def stopInventory(self):
         """ask to the reader to stop inventory
         """
         if self.isConnected():
             logger.info("stopping inventory...")
+            self.tags_table_refresh_timer.stop()
+
             self.reader.llrp.stopPolitely()
             self.reader.join(0.1)
+
+            unique_tags = len({x[0] for x in self.get_tags_db_copy().keys()})
+            msg = '%d tags seen (%d uniques) | PAUSED' % (
+                self.total_tags_seen, unique_tags)
+            self.update_status(msg)
 
     def tag_report_cb(self, reader, tags):
         """sllurp tag report callback, it emits a signal in order to perform
         the report parsing on the QT loop to avoid GUI freezing
         """
         self.lock.acquire()
-        self.inventoryReportReceived.emit(tags)
+
+
+        tags_db = self.tags_db
+        start_time = self.reader_start_time
+        if start_time is None:
+            start_time = 0
+
+        new_tag_seen_count = 0
+        updated_tag_keys = set()
+
+        tagList = []  # use to display all tags on the window
+        #logger.info('%s tag_filter_mask=<%s>', str(tags),
+        #            str(self.reader.llrp.config.tag_filter_mask))
+        #logger.info('Full: %s', pprint.pformat(tags))
+
+        # parsing each tag in the report
+        for tag in tags:
+            # get epc ID. (EPC covers EPC-96 and EPCData)
+            epc = tag["EPC"].decode("utf-8").upper()
+            ant_id = tag["AntennaID"]
+            # Convert to milliseconds
+            first_seen_tstamp = (tag.get('FirstSeenTimestampUTC', start_time)
+                                 - start_time) // 1000
+            last_seen_tstamp = (tag.get('LastSeenTimestampUTC', start_time)
+                                - start_time) // 1000
+            key = (epc, ant_id)
+            prev_info = tags_db.get(key, {})
+
+            seen_count_new = tag.get('TagSeenCount', 1)
+            seen_count = prev_info.get('seen_count', 0) + seen_count_new
+
+            first_seen_tstamp = prev_info.get('first_seen', first_seen_tstamp)
+
+
+            channel_idx_new = tag.get('ChannelIndex', 0)
+            channel_idx_old = prev_info.get('channel_index', 0)
+
+            # PeakRSSI highest value
+            peakrssi_new = tag.get('PeakRSSI', -120)
+            peakrssi_best = max(peakrssi_new, prev_info.get('rssi', -120))
+
+            new_info = tags_db[key] = {
+                'epc': epc,
+                'antenna_id': ant_id,
+                'rssi': peakrssi_best,
+                'channel_index': channel_idx_old or channel_idx_new,
+                'seen_count': seen_count,
+                'first_seen': first_seen_tstamp,
+                'last_seen': last_seen_tstamp,
+                'last_rssi': peakrssi_new,
+                'last_channel_index': channel_idx_new
+            }
+
+            # Add Impinj specific data if available
+            phase = tag.get('ImpinjRFPhaseAngle')
+            if phase is not None:
+                new_info['impinj_phase'] = phase
+            doppler_freq = tag.get('ImpinjRFDopplerFrequency')
+            if doppler_freq is not None:
+                new_info['impinj_doppler'] = doppler_freq
+
+            new_tag_seen_count += seen_count_new
+            updated_tag_keys.add(key)
+
+        self.total_tags_seen += new_tag_seen_count
+
+
+        self.inventoryReportReceived.emit(updated_tag_keys)
         self.lock.release()
 
-    def parseInventoryReport(self, tags):
+    def reader_event_cb(self, reader, events):
+        timestamp_event = events.get('UTCTimestamp', {})
+        timestamp_us = timestamp_event.get('Microseconds', 0)
+        if self.reader_start_time:
+                timestamp_since_start = timestamp_us - self.reader_start_time
+        else:
+                timestamp_since_start = 0
+
+        # Set reader_start at the time of the first ROSpec start event
+        rospec_event = events.get('ROSpecEvent', {})
+        if rospec_event:
+            event_type = rospec_event.get('EventType')
+            if event_type == 'Start_of_ROSpec' and not self.reader_start_time:
+                self.reader_start_time = timestamp_us
+
+    def clear_tags_db(self):
+        self.tags_db = {}
+
+    def get_tags_db_copy(self):
+        """Freeze the value of the tags db for display
+
+        Warning: this assumes that there is no "referenced" object in tags_db
+        """
+        return self.tags_db.copy()
+
+    def parseInventoryReport(self, updated_tag_keys):
         """Function called each time the reader reports seeing tags,
         It is run on the QT loop to avoid GUI freezing.
         """
-        tagList = []  # use to display all tags on the window
-        logger.info('%s tag_filter_mask=<%s>', str(tags),
-                    str(self.reader.llrp.config.tag_filter_mask))
-        epc = None
-        # parsing each tag in the report
-        for tag in tags:
-            # get epc ID
-            if "EPC-96" in tag:
-                # sllurp return specific formatting when epc length = 96
-                epc = tag["EPC-96"].decode("utf-8")
-                strepc = tag["EPC-96"]
-            elif "EPCData" in tag:
-                epc = tag["EPCData"]["EPC"].decode("utf-8")
-                strepc = tag["EPCData"]["EPC"]
-            else:
-                logger.warning("Unknown inventory report fomartting:%s",
-                               str(tags))
-            # append tag seen in the list
-            tagList.append((epc, tag["TagSeenCount"]))
-            # # parse data if it is an OpSpec report
-            # if "OpSpecResult" in tag:
-            #     # copy the binary data to the standard output stream
-            #     data = tag["OpSpecResult"].get("ReadData")
-            #     # ignore data if empty
-            #     if data != b"" and data:
-            #         # parse data
-            #         values = []
-            #         len_data = len(data)
-            #         sList = []
-            #         for i in range(0, len_data, 2):
-            #             sList.append(int.from_bytes(data[i : i + 2], "big"))
-            #         if len(sList) == 1:
-            #             values = sList[0]
-            #         else:
-            #             values = sList
-        self.inventoryReportParsed.emit(tagList)
+        self.recently_updated_tag_keys.update(updated_tag_keys)
+        #self.inventoryReportParsed.emit(updated_tag_keys)
 
     def exithandler(self):
         """called when the user closes the main window
@@ -333,22 +592,14 @@ class Gui(QObject):
         layout = QVBoxLayout()
         paramTree = ParameterTree(showHeader=False)
         layout.addWidget(paramTree)
-        textBox = QTextEdit()
-        textBox.setReadOnly(True)
-        textBox.value = lambda: str(textBox.toPlainText())
-        textBox.setValue = textBox.setPlainText
-        textBox.sigChanged = textBox.textChanged
-        layout.addWidget(textBox)
+
         buttonBox = QDialogButtonBox(QBtn)
         buttonBox.accepted.connect(dlg.accept)
         buttonBox.rejected.connect(dlg.reject)
         layout.addWidget(buttonBox)
         dlg.setLayout(layout)
         paramTree.setParameters(self.readerParam, showTop=False)
-        try:
-            textBox.setText(pprint.pformat(self.reader.llrp.capabilities))
-        except:
-            pass
+
         dlg.exec_()
         self.readerConfigChangedEvent()
 
@@ -368,11 +619,12 @@ class Gui(QObject):
         tree view
         """
         win = self.window
-        win.listModel.clear()
-        self.knownTagList.clear()
-        win.listModel.setHorizontalHeaderLabels(["EPC", "Tag Seen Count"])
-        win.treeview.resizeColumnToContents(1)
-        win.treeview.resizeColumnToContents(0)
+        self.reader_start_time = None
+        self.clear_tags_db()
+        self.total_tags_seen = 0
+        self.speed_counter.reset()
+        win.tags_view_table.update(self.get_tags_db_copy())
+        win.tags_view.resizeColumnsToContents()
 
     def delayreaderConfigChangedEvent(self):
         """used to delay the power applying when the user slides
@@ -393,30 +645,22 @@ class Gui(QObject):
                 self.startInventory()
             self.currentEpc = None
 
-    def updateInventoryReport(self, tagList):
+    def updateInventoryReport(self):
         """called to update inventory tree view
         """
         # update inventory widget
-        if len(tagList) != 0:
-            for tag in tagList:
-                epc = tag[0]
-                tagSeenCount = tag[1]
-                if epc not in self.knownTagList:
-                    self.knownTagList.append(epc)
-                    epcItem = QStandardItem(epc)
-                    epcItem.setEditable(False)
-                    epcItem.setSelectable(False)
-                    tagSeenCountItem = QStandardItem(str(tagSeenCount))
-                    tagSeenCountItem.setEditable(False)
-                    tagSeenCountItem.setSelectable(False)
-                    self.window.listModel.appendRow(
-                        [epcItem, tagSeenCountItem])
-                    self.window.treeview.resizeColumnToContents(1)
-                    self.window.treeview.resizeColumnToContents(0)
-                else:
-                    rowId = self.knownTagList.index(epc)
-                    self.window.listModel.item(
-                        rowId, 1).setText(str(tagSeenCount))
+        tags_copy = self.get_tags_db_copy()
+        if self.recently_updated_tag_keys:
+            speed = self.speed_counter.get_speed(self.total_tags_seen)
+
+            self.window.tags_view_table.update(tags_copy)
+            self.recently_updated_tag_keys = set()
+            self.window.tags_view.resizeColumnsToContents()
+
+            unique_tags = len({x[0] for x in tags_copy.keys()})
+            msg = '%d tags/second - %d tags seen (%d uniques) | RUNNING' % (
+                speed, self.total_tags_seen, unique_tags)
+            self.update_status(msg)
 
     def resetWindowWidgets(self):
         """set UI to default apparence state
@@ -493,10 +737,31 @@ class Gui(QObject):
     def onConnection(self, reader, state):
         """called when connection with the reader is opened
         """
+        self.readerConnected.emit()
+
+    def reader_connected_event(self):
         self.updateconnectionButton()
         # parse reader capabilities
-        self.powerTableChanged.emit(reader.llrp.tx_power_table)
-        self.antennaIDListChanged.emit(list(range(1, reader.llrp.max_ant + 1)))
+        self.powerTableChanged.emit(self.reader.llrp.tx_power_table)
+        self.antennaIDListChanged.emit(list(range(1, self.reader.llrp.max_ant + 1)))
+
+        try:
+            ## TO BE FIXED: We use too much sllurp internals knowledge
+            capab = self.reader.llrp.capabilities
+            #capab_msg = self.reader.llrp.LLRPMessage(capab)
+            capab_msg = llrp_data2xml({'GET_READER_CAPABILITIES_RESPONSE':
+                                       capab})
+            self.window.reader_capacities_box.setPlainText(capab_msg)
+        except Exception as exc:
+            logger.error("Error setting the reader capacities box: %s",
+                         str(exc))
+
+        ## TO BE ADDED for reader config
+        #try:
+        #    self.window.reader_config_box.setText(
+        #        pprint.pformat(self.reader.llrp.capabilities))
+        #except Exception:
+        #    pass
 
     def currentAntennaId(self):
         """return the current antenna ID set by the user
@@ -518,6 +783,13 @@ class Gui(QObject):
             list_value = []
         return list_value
 
+    def log(self, text):
+        timenow = '{0:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now())
+        self.window.logger_box.appendPlainText(timenow + ': ' + text)
+
+    def update_status(self, text):
+        self.window.status_label.setText(text)
+
 
 class MainWindow(QMainWindow):
     def __init__(self, *args, **kwargs):
@@ -532,9 +804,9 @@ class MainWindow(QMainWindow):
 
         # Create a status bar
         status_bar = self.statusBar()
-        # To be exported
-        win_status_label = QLabel('')
-        status_bar.addPermanentWidget(win_status_label)
+        status_label = QLabel('')
+        status_bar.addPermanentWidget(status_label)
+        self.status_label = status_label
 
         # create central widget/layout
         centralW = QWidget(self)
@@ -636,7 +908,7 @@ class MainWindow(QMainWindow):
 
     def create_tabbed_body(self, parent_widget):
         # create bottom widget/layout
-        tabbed_body_w = QGroupBox("Inventory", parent=parent_widget)
+        tabbed_body_w = QGroupBox("Reports", parent=parent_widget)
         inventoryL = QVBoxLayout(tabbed_body_w)
 
         tabs_w = QTabWidget(parent=tabbed_body_w)
@@ -644,7 +916,7 @@ class MainWindow(QMainWindow):
 
         # Add widget tabs
         inventory_tab = self.create_inventory_tags_tab(tabs_w)
-        tabs_w.addTab(inventory_tab, 'Inventory tag reads')
+        tabs_w.addTab(inventory_tab, 'Inventory Tag Reads')
 
         adv_graph_tab = self.create_advanced_graph_tab(tabs_w)
         tabs_w.addTab(adv_graph_tab, 'Advanced Graph')
@@ -652,28 +924,69 @@ class MainWindow(QMainWindow):
         log_tab = self.create_logs_tab(tabs_w)
         tabs_w.addTab(log_tab, 'Operation Log')
 
+        capab_tab = self.create_rcapabilities_tab(tabs_w)
+        tabs_w.addTab(capab_tab, 'Reader Capabilities')
+
+        #config_tab = self.create_rconfig_tab(tabs_w)
+        #tabs_w.addTab(config_tab, 'Reader Config')
 
         return tabbed_body_w
 
     def create_inventory_tags_tab(self, parent_widget):
         # Inventory tree view
-        treeview = QTreeView(parent=parent_widget)
+        tags_view = QTableView(parent=parent_widget)
+        tags_view.setAlternatingRowColors(True)
+
+        table_stylesheet = r"""
+            QTableView {
+                Background-color:rgb(230,230,230);
+                gridline-color:white; font-size:12pt;
+                font-style:bold;
+            };
+        """
+
+        tags_view.setStyleSheet(table_stylesheet)
+
+        headers_stylesheet = r"""
+            QHeaderView {
+                Background-color:rgb(230,230,230);
+                border-left-color: black;
+                border-right-color: black
+            };
+            QHeaderView::section{
+                Background-color:rgb(200,200,200);
+                font-size:12pt;
+                font-style:bold;
+            };
+        """
+        tags_view.horizontalHeader().setStyleSheet(headers_stylesheet)
+        tags_view.verticalHeader().setStyleSheet(headers_stylesheet)
+
+        # Hide the QTableView corner
+        global_stylesheet = r"""
+            QTableView QTableCornerButton::section {
+                background-color: rgb(230, 230, 230);
+            }
+        """
+        self.setStyleSheet(global_stylesheet)
+
 
         # Operation list model
-        self.listModel = QStandardItemModel(treeview)
-        self.listModel.setHorizontalHeaderLabels(["EPC", "Tag Seen Count"])
-        # treeview.resizeColumnToContents(3)
-        # treeview.resizeColumnToContents(2)
-        treeview.resizeColumnToContents(1)
-        treeview.resizeColumnToContents(0)
+        self.tags_view_table = TagsTableModel({})
+
+        ## treeview.resizeColumnToContents(3)
+        ## treeview.resizeColumnToContents(2)
+        #treeview.resizeColumnToContents(1)
+        #treeview.resizeColumnToContents(0)
+        tags_view.resizeColumnsToContents()
 
         # Set model to view
-        treeview.setModel(self.listModel)
-        treeview.setContextMenuPolicy(Qt.CustomContextMenu)
-        treeview.customContextMenuRequested.connect(self.openMenu)
+        tags_view.setModel(self.tags_view_table)
+        tags_view.setContextMenuPolicy(Qt.CustomContextMenu)
+        tags_view.customContextMenuRequested.connect(self.openMenu)
 
-        self.treeview = treeview
-        return treeview
+        self.tags_view = tags_view
+        return tags_view
 
     def create_advanced_graph_tab(self, parent_widget):
         adv_graph_w = QWidget(parent=parent_widget)
@@ -704,6 +1017,7 @@ class MainWindow(QMainWindow):
         adv_graph_l.addLayout(button_layout, 1)
         adv_graph_l.addWidget(graph_w, 5)
 
+        self.graph_dataplot = dataplot
         return adv_graph_w
 
     def create_logs_tab(self, parent_widget):
@@ -713,6 +1027,22 @@ class MainWindow(QMainWindow):
 
         self.logger_box = logger_box_w
         return logger_box_w
+
+    def create_rcapabilities_tab(self, parent_widget):
+        # Create a logs box
+        capab_box_w = QPlainTextEdit()
+        capab_box_w.setReadOnly(True)
+
+        self.reader_capacities_box = capab_box_w
+        return capab_box_w
+
+    def create_rconfig_tab(self, parent_widget):
+        # Create a logs box
+        rconfig_box_w = QPlainTextEdit()
+        rconfig_box_w.setReadOnly(True)
+
+        self.reader_config_box = rconfig_box_w
+        return rconfig_box_w
 
     #def element(self, name):
     #    return self.centralUI.element(name)
@@ -751,15 +1081,15 @@ class MainWindow(QMainWindow):
     def openMenu(self, pos):
         action = QAction(QIcon(""), "copy", self)
         action.triggered.connect(
-            lambda: self.itemValueToClipboard(self.treeview.indexAt(pos)))
+            lambda: self.itemValueToClipboard(self.tags_view.indexAt(pos)))
         menu = QMenu()
         menu.addAction(action)
         pt = QPoint(pos)
-        menu.exec(self.treeview.mapToGlobal(pos))
+        menu.exec(self.tags_view.mapToGlobal(pos))
 
     def itemValueToClipboard(self, index):
         QApplication.clipboard().setText(
-            self.treeview.model().itemFromIndex(index).text())
+            self.tags_view.model().itemFromIndex(index).text())
 
 
 if __name__ == "__main__":
