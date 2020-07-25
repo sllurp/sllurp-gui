@@ -7,6 +7,8 @@ import pprint
 import sys
 import threading
 
+from collections import OrderedDict
+
 from PyQt5.QtCore import (Qt, QObject, pyqtSignal, QTimer, QRegExp, QPoint,
                           QAbstractTableModel)
 from PyQt5.QtGui import (QIcon, QRegExpValidator, QStandardItem,
@@ -40,6 +42,45 @@ TAGS_TABLE_COLUMNS = ['epc', 'antenna_id', 'rssi', 'channel_index',
 
 DEFAULT_POWER_TABLE = [index for index in range(15, 25, 1)]
 DEFAULT_ANTENNA_LIST = [1]
+
+READER_MODES_TITLES = OrderedDict(sorted({
+    '0 - (Impinj: Max Throughput)': 0,
+    '1 - (Impinj: Hybrid M=2)': 1,
+    '2 - (Impinj: Dense Reader M=4)': 2,
+    '3 - (Impinj: Dense Reader M=8)': 3,
+    '4 - (Impinj: Max Miller M=4)': 4,
+    '5 - (Impinj: Dense Reader 2 M=4)': 5,
+    '6': 6,
+    '7': 7,
+    '8': 8,
+    '9': 9,
+    '10': 10,
+    '11': 11,
+    '12': 12,
+    '13': 13,
+    '14': 14,
+    '15': 15,
+    '16': 16,
+    '17': 17,
+    '18': 18,
+    '19': 19,
+    '20': 20,
+    '1000 - (Impinj: Autoset)': 1000,
+    '1002 - (Impinj: Autoset Static)': 1002,
+    '1003 - (Impinj: Autoset Static Fast)': 1003,
+    '1004 - (Impinj: Autoset Static DRM)': 1004,
+    '1005': 1005,
+}.items(), key=lambda x: x[1]))
+
+IMPINJ_SEARCH_MODE_TITLES = OrderedDict(sorted({
+    '0 - Reader Selected (default)': 0,
+    '1 - Single Target Inventory': 1,
+    '2 - Dual Target Inventory': 2,
+    '3 - Single Target Inventory with Suppression': 3,
+    '5 - Single Target Reset Inventory': 5,
+    '6 - Dual Target Inventory with Reset': 6,
+}}.items(), key=lambda x: x[1]))
+
 readerSettingsParams = [
     {
         'name': 'time',
@@ -51,21 +92,21 @@ readerSettingsParams = [
         'type': 'int', 'value': 1
     }, {
         'name': 'tari',
-        'title': 'Tari (Tari value (default 0=auto))',
+        'title': 'Tari (Tari value; default 0=auto)',
         'type': 'int', 'value': 0
     }, {
         'name': 'session',
-        'title': 'Session (Gen2 session (default 2))',
+        'title': 'Session (Gen2 session; default 2)',
         'type': 'list', 'values': [0, 1, 2, 3],
         'value': 2
     }, {
         'name': 'mode_identifier',
         'title': 'Mode identifier (ModeIdentifier value)',
-        'type': 'list', 'values': [0, 1, 2, 3],
+        'type': 'list', 'values': READER_MODES_TITLES,
         'value': 2
     }, {
         'name': 'tag_population',
-        'title': 'Tag population (Tag Population value (default 4))',
+        'title': 'Tag population (Tag Population value; default 4)',
         'type': 'int', 'value': 4
     }, {
         'name': 'frequencies',
@@ -86,8 +127,8 @@ readerSettingsParams = [
                 'name': 'search_mode',
                 'title': 'Impinj search mode',
                 'type': 'list',
-                'values': ['single', 'dual'],
-                'value': 'single'
+                'values': IMPINJ_SEARCH_MODE_TITLES,
+                'value': 0
             }
         ]
     }, {
@@ -195,8 +236,6 @@ class ReadSpeedCounter:
 
 
 class TagHistory:
-
-    start = None    # static start time variable
 
     def __init__(self, name):
         self.name = name
@@ -323,7 +362,7 @@ class Gui(QObject):
         self.recently_updated_tag_keys = set()
         self.tags_db = {}
         self.speed_counter = ReadSpeedCounter(6)
-        self.history_enabled = True
+        self.history_enabled = False
 
         self.curves = {}
         self.rolling = False
@@ -454,8 +493,7 @@ class Gui(QObject):
             impinj_ext_fn = r_param_fn('impinj_extensions').param
             if impinj_ext_fn('enabled').value():
                 search_mode = impinj_ext_fn('search_mode').value()
-                search_mode_val = (search_mode == 'dual') and 2 or 1
-                factory_args['impinj_search_mode'] = search_mode_val
+                factory_args['impinj_search_mode'] = search_mode
 
                 factory_args['impinj_tag_content_selector'] = {
                     'EnableRFPhaseAngle': True,
