@@ -83,7 +83,7 @@ IMPINJ_SEARCH_MODE_TITLES = OrderedDict(sorted({
     '3 - Single Target Inventory with Suppression': 3,
     '5 - Single Target Reset Inventory': 5,
     '6 - Dual Target Inventory with Reset': 6,
-}}.items(), key=lambda x: x[1]))
+}.items(), key=lambda x: x[1]))
 
 readerSettingsParams = [
     {
