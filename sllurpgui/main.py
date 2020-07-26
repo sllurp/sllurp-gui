@@ -1,4 +1,3 @@
-import initExample  # just to work with sllurp of this repo
 import datetime
 import logging as logger
 import math
@@ -25,6 +24,11 @@ from pyqtgraph.parametertree import ParameterTree, Parameter
 from signal import SIGINT, SIGTERM, signal
 from time import monotonic
 
+try:
+    from sllurp.version import __version__ as sllurp_version
+except ImportError:
+    print("Please install the `sllurp` package")
+    raise
 from sllurp.llrp import (C1G2Read, C1G2Write, LLRPReaderClient,
                          LLRPReaderConfig, LLRPReaderState, llrp_data2xml)
 
@@ -442,6 +446,7 @@ class Gui(QObject):
 
         self.graph_create()
 
+        self.log("Using sllurp version %s" % sllurp_version)
         self.resetWindowWidgets()
 
     def connect(self):
@@ -840,6 +845,7 @@ class Gui(QObject):
         tree view
         """
         win = self.window
+        old_db_total_tags = self.total_tags_seen
         self.reader_start_time = None
         self.total_tags_seen = 0
         self.speed_counter.reset()
@@ -853,7 +859,9 @@ class Gui(QObject):
         win.tags_view_table.update(self.get_tags_db_copy())
         win.tags_view.resizeColumnsToContents()
 
-        self.log('Tag data cleared')
+        if old_db_total_tags:
+            # Only show the log entry when it did something
+            self.log('Tag data cleared')
         self.update_status('')
 
     def delayreaderConfigChangedEvent(self):
@@ -1474,7 +1482,11 @@ class MainWindow(QMainWindow):
             self.tags_view.model().itemFromIndex(index).text())
 
 
-if __name__ == "__main__":
+def main():
     app = QApplication(sys.argv)
     gui = Gui()
     sys.exit(app.exec_())
+
+
+if __name__ == "__main__":
+    main()
