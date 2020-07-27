@@ -1,3 +1,48 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+""" GUI Frontend for SLLURP to control LLRP RFID Readers
+
+This GUI uses an implementation of the Low Level Reader Protocol controller
+in python (see: github.com/ransford/sllurp), however, for the moment, a
+particular rework branch (fviard-develop-v2) has to be used here (see:
+github.com/fviard/sllurp/tree/fviard-develop-v2).
+
+The GUI relies on PyQt5, pyqtgraph and using Python 3.6 or higher is
+recommended. It has not been tested on any other OS than Linux.
+
+
+Important warning:
+This project is in a Work In Progress state, and a few bugs and unfinished
+features are to be expected.
+
+
+Copyright (C) 2020 Contributors
+
+
+Authors:
+    - Florent Viard (florent@sodria.com)
+    - Papapel
+    - Thijmen Ketel
+
+Website:
+    https://github.com/fviard/sllurp-gui
+
+License:
+    GPL Version 3
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+You should have received a copy of the GNU General Public License along with
+this program. If not, see <http://www.gnu.org/licenses/>.
+
+"""
+
 import datetime
 import logging as logger
 import math

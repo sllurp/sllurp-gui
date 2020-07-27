@@ -1,11 +1,32 @@
-!! WARNING - WORK IN PROGRESS - NOT YET FUNCTIONAL !!
+!! WARNING - WORK IN PROGRESS - BUGS AND UNFINISHED FEATURES TO BE EXPECTED !!
 
-sllurp-gui is a QT Graphical Interface to control LLRP RFID readers.
+Sllurpgui is a QT Graphical Interface to control LLRP RFID readers.
 
-sllurp-gui is a frontend to the sllurp Python library.
+Authors:
+    - Florent Viard (florent@sodria.com)
+    - Papapel
+    - Thijmen Ketel
+
+Website:
+    https://github.com/fviard/sllurp-gui
+
+License:
+    GPL Version 3
+
+Sllurpgui is a GUI frontend to the sllurp Python library.
+Sllurp is an implementation of a client for the Low Level Reader Protocol.
+
+An experimental v2 version of Sllurp is required for this GUI
+(see: github.com/fviard/sllurp/tree/fviard-develop-v2)
+
+The GUI relies on PyQt5, pyqtgraph and using Python 3.6 or higher is
+recommended. It has not been tested on any other OS than Linux.
+
+Important warning:
+This project is in a Work In Progress state, and a few bugs and unfinished
+features are to be expected.
 
 
-Based on the original work of Thijmen Ketel and Papapel.
 
 --- Original readme from qtgui ---
 
