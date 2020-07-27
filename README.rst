@@ -27,6 +27,7 @@ This project is in a Work In Progress state, and a few bugs and unfinished
 features are to be expected.
 
 
+![SllurpGUI Screenshot](/docs/sllurpgui_screenshot.png?raw=true "SllurpGUI Screenshot")
 
 --- Original readme from qtgui ---
 
