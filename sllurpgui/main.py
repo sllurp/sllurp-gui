@@ -668,8 +668,7 @@ class Gui(QObject):
             impinj_ext_fn = r_param_fn('impinj_extensions').param
             if impinj_ext_fn('enabled').value():
                 search_mode = impinj_ext_fn('search_mode').value()
-                search_mode_val = (search_mode == 'dual') and 2 or 1
-                factory_args['impinj_search_mode'] = search_mode_val
+                factory_args['impinj_search_mode'] = search_mode
 
                 factory_args['impinj_tag_content_selector'] = {
                     'EnableRFPhaseAngle': True,
