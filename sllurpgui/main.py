@@ -320,7 +320,7 @@ class TagHistory:
             if phase is None:
                 # What for default value?
                 phase = 0
-            self.phases.append(phase * ((math.pi * 2)/4096))
+            self.phases.append(phase * ((math.pi * 2) / 4096))
 
             if doppler is None:
                 # What for default value?
@@ -410,6 +410,7 @@ class Gui(QObject):
         self.total_tags_seen = 0
         self.recently_updated_tag_keys = set()
         self.tags_db = {}
+        self.tags_db_lock = threading.Lock()
         self.speed_counter = ReadSpeedCounter(6)
         self.history_enabled = False
 
@@ -419,7 +420,6 @@ class Gui(QObject):
         self.rollingsize = 1500
         self.graph_current_index = 3
 
-        self.lock = threading.Lock()
         self.reader = None
         self.readerParam = Parameter.create(name='params',
                                             type='group',
@@ -718,94 +718,95 @@ class Gui(QObject):
         """sllurp tag report callback, it emits a signal in order to perform
         the report parsing on the QT loop to avoid GUI freezing
         """
-        self.lock.acquire()
+        with self.tags_db_lock:
+
+            history_enabled = self.history_enabled
+            tags_db = self.tags_db
+            start_time = self.reader_start_time
+            if start_time is None:
+                start_time = 0
+
+            new_tag_seen_count = 0
+            updated_tag_keys = set()
+
+            #logger.info('%s tag_filter_mask=<%s>', str(tags),
+            #            str(self.reader.llrp.config.tag_filter_mask))
+            #logger.info('Full: %s', pprint.pformat(tags))
+
+            # parsing each tag in the report
+            for tag in tags:
+                # get epc ID. (EPC covers EPC-96 and EPCData)
+                epc = tag["EPC"].decode("utf-8").upper()
+                ant_id = tag["AntennaID"]
+                # Convert to milliseconds
+                if start_time:
+                    new_first_seen_tstamp = \
+                        (tag.get('FirstSeenTimestampUTC', start_time)
+                        - start_time) // 1000
+                else:
+                    # ROSpec start was missed, or data was cleared
+                    # mid-inventory
+                    new_first_seen_tstamp = 0
+                    start_time = tag.get('FirstSeenTimestampUTC', 0)
+                    self.reader_start_time = start_time
+
+                last_seen_tstamp = (tag.get('LastSeenTimestampUTC', start_time)
+                                    - start_time) // 1000
+                key = (epc, ant_id)
+                prev_info = tags_db.get(key, {})
+                prev_history = prev_info.get('history', TagHistory(key))
+
+                seen_count_new = tag.get('TagSeenCount', 1)
+                seen_count = prev_info.get('seen_count', 0) + seen_count_new
+
+                channel_idx_new = tag.get('ChannelIndex', 0)
+                channel_idx_old = prev_info.get('channel_index', 0)
+
+                # PeakRSSI highest value
+                peakrssi_new = tag.get('PeakRSSI', -120)
+                peakrssi_best = max(peakrssi_new, prev_info.get('rssi', -120))
+
+                first_seen_tstamp = prev_info.get('first_seen',
+                                                new_first_seen_tstamp)
+
+                new_info = {
+                    'epc': epc,
+                    'antenna_id': ant_id,
+                    'history': prev_history,
+                    'rssi': peakrssi_best,
+                    'channel_index': channel_idx_old or channel_idx_new,
+                    'seen_count': seen_count,
+                    'first_seen': first_seen_tstamp,
+                    'last_seen': last_seen_tstamp,
+                    'last_rssi': peakrssi_new,
+                    'last_channel_index': channel_idx_new
+                }
+
+                # Add Impinj specific data if available
+                phase = tag.get('ImpinjRFPhaseAngle')
+                if phase is not None:
+                    new_info['impinj_phase'] = phase
+                doppler_freq = tag.get('ImpinjRFDopplerFrequency')
+                if doppler_freq is not None:
+                    new_info['impinj_doppler'] = doppler_freq
+
+                tags_db[key] = new_info
+
+                if history_enabled:
+                    prev_history.add_data(new_first_seen_tstamp,
+                                        peakrssi_new,
+                                        channel_idx_new,
+                                        phase,
+                                        doppler_freq)
 
 
-        history_enabled = self.history_enabled
-        tags_db = self.tags_db
-        start_time = self.reader_start_time
-        if start_time is None:
-            start_time = 0
+                new_tag_seen_count += seen_count_new
+                updated_tag_keys.add(key)
 
-        new_tag_seen_count = 0
-        updated_tag_keys = set()
-
-        #logger.info('%s tag_filter_mask=<%s>', str(tags),
-        #            str(self.reader.llrp.config.tag_filter_mask))
-        #logger.info('Full: %s', pprint.pformat(tags))
-
-        # parsing each tag in the report
-        for tag in tags:
-            # get epc ID. (EPC covers EPC-96 and EPCData)
-            epc = tag["EPC"].decode("utf-8").upper()
-            ant_id = tag["AntennaID"]
-            # Convert to milliseconds
-            if start_time:
-                new_first_seen_tstamp = \
-                    (tag.get('FirstSeenTimestampUTC', start_time)
-                     - start_time) // 1000
-            else:
-                # ROSpec start was missed, or data was cleared mid-inventory
-                new_first_seen_tstamp = 0
-                start_time = tag.get('FirstSeenTimestampUTC', 0)
-                self.reader_start_time = start_time
-
-            last_seen_tstamp = (tag.get('LastSeenTimestampUTC', start_time)
-                                - start_time) // 1000
-            key = (epc, ant_id)
-            prev_info = tags_db.get(key, {})
-            prev_history = prev_info.get('history', TagHistory(key))
-
-            seen_count_new = tag.get('TagSeenCount', 1)
-            seen_count = prev_info.get('seen_count', 0) + seen_count_new
-
-            channel_idx_new = tag.get('ChannelIndex', 0)
-            channel_idx_old = prev_info.get('channel_index', 0)
-
-            # PeakRSSI highest value
-            peakrssi_new = tag.get('PeakRSSI', -120)
-            peakrssi_best = max(peakrssi_new, prev_info.get('rssi', -120))
-
-            first_seen_tstamp = prev_info.get('first_seen',
-                                              new_first_seen_tstamp)
-
-            new_info = tags_db[key] = {
-                'epc': epc,
-                'antenna_id': ant_id,
-                'history': prev_history,
-                'rssi': peakrssi_best,
-                'channel_index': channel_idx_old or channel_idx_new,
-                'seen_count': seen_count,
-                'first_seen': first_seen_tstamp,
-                'last_seen': last_seen_tstamp,
-                'last_rssi': peakrssi_new,
-                'last_channel_index': channel_idx_new
-            }
-
-            # Add Impinj specific data if available
-            phase = tag.get('ImpinjRFPhaseAngle')
-            if phase is not None:
-                new_info['impinj_phase'] = phase
-            doppler_freq = tag.get('ImpinjRFDopplerFrequency')
-            if doppler_freq is not None:
-                new_info['impinj_doppler'] = doppler_freq
-
-            if history_enabled:
-                prev_history.add_data(new_first_seen_tstamp,
-                                      peakrssi_new,
-                                      channel_idx_new,
-                                      phase,
-                                      doppler_freq)
-
-
-            new_tag_seen_count += seen_count_new
-            updated_tag_keys.add(key)
-
-        self.total_tags_seen += new_tag_seen_count
+            self.total_tags_seen += new_tag_seen_count
 
 
         self.inventoryReportReceived.emit(updated_tag_keys)
-        self.lock.release()
 
     def reader_event_cb(self, reader, events):
         timestamp_event = events.get('UTCTimestamp', {})
@@ -823,14 +824,22 @@ class Gui(QObject):
                 self.reader_start_time = timestamp_us
 
     def clear_tags_db(self):
-        self.tags_db = {}
+        with self.tags_db_lock:
+            self.tags_db = {}
 
     def get_tags_db_copy(self):
         """Freeze the value of the tags db for display
 
-        Warning: this assumes that there is no "referenced" object in tags_db
+        Warning: This is not a deep copy of the db, and except the tag key list
+        itself, it will still be "reference" to inner tag info and history.
+        This should be crash-free acceptable even if maybe not always
+        perfectly consistent as tags info are updated atomically by
+        tag_report_cb.
+        The goal of the lock and copy is mainly to avoid unexecpected issues
+        with the "clear_tags" operation at the wrong time.
         """
-        return self.tags_db.copy()
+        with self.tags_db_lock:
+            return self.tags_db.copy()
 
     def parseInventoryReport(self, updated_tag_keys):
         """Function called each time the reader reports seeing tags,
