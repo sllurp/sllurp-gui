@@ -834,7 +834,7 @@ class Gui(QObject):
         This should be crash-free acceptable even if maybe not always
         perfectly consistent as tags info are updated atomically by
         tag_report_cb.
-        The goal of the lock and copy is mainly to avoid unexecpected issues
+        The goal of the lock and copy is mainly to avoid unexpected issues
         with the "clear_tags" operation at the wrong time.
         """
         with self.tags_db_lock:

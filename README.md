@@ -1,41 +1,33 @@
-!! WARNING - WORK IN PROGRESS - BUGS AND UNFINISHED FEATURES TO BE EXPECTED !!
+=========================================================================
+sllurp-gui is a QT based graphical interface to control LLRP RFID readers
+=========================================================================
 
-Sllurpgui is a QT Graphical Interface to control LLRP RFID readers.
+Project website:
+    https://github.com/sllurp/sllurp-gui
 
-Authors:
-    - Florent Viard (florent@sodria.com)
-    - Papapel
-    - Thijmen Ketel
+sllurp-gui is a GUI frontend to the sllurp Python library.
+sllurp is an implementation of a client for the Low Level Reader Protocol (LLRP).
 
-Website:
-    https://github.com/fviard/sllurp-gui
-
-License:
-    GPL Version 3
-
-Sllurpgui is a GUI frontend to the sllurp Python library.
-Sllurp is an implementation of a client for the Low Level Reader Protocol.
-
-An experimental v2 version of Sllurp is required for this GUI
-(see: github.com/fviard/sllurp/tree/fviard-develop-v2)
+A recent version of sllurp (>= 2.0) is required to be able to run this GUI.
 
 The GUI relies on PyQt5, pyqtgraph and using Python 3.6 or higher is
 recommended. It has not been tested on any other OS than Linux.
 
-Important warning:
-This project is in a Work In Progress state, and a few bugs and unfinished
+Important note:
+This project is still in a `Beta` state, and a few bugs and unfinished
 features are to be expected.
 
+Please report any bug by filing an issue on the [sllurp-gui project Github](https://github.com/sllurp/sllurp-gui/)
+
+sllurp is distributed under version 3 of the GNU General Public License.  See
+``LICENSE.txt`` for details.
 
 ![SllurpGUI Screenshot](/docs/sllurpgui_screenshot.png?raw=true "SllurpGUI Screenshot")
 
---- Original readme from qtgui ---
 
-# Introduction
+# Features
 
-An example which implements sllurp through a graphical unit interface.
-
-Available feature:
+Available features:
 - inventory
 
 Tag memory read/write are not available.
@@ -48,12 +40,20 @@ Tag memory read/write are not available.
 pip install pyqtgraph pyqt5
 ```
 
-**Run GUI**
+**Install sllurp-gui**
 ```
-python3 main.py
+python3 setup.py install
 ```
 
-# Generate single-file exe
+**Run GUI**
+```
+sllurp-gui
+```
+
+
+# DEPRECTAED: Generate single-file exe
+
+TO BE UPDATED
 
 **Install requirements**
 ```
@@ -86,3 +86,10 @@ PyInstaller --noconfirm --log-level=INFO ^
     main.py
 ```
 Note: update the `--paths` option to set the Qt path according to your setup.
+
+
+# Authors
+
+    - Florent Viard (florent@sodria.com)
+    - Papapel
+    - Thijmen Ketel
