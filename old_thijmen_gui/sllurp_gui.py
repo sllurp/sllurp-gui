@@ -82,7 +82,7 @@ class SllurpGui(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        with open('gui/llrpsettings.json', 'r') as settingsfile:
+        with open('llrpsettings.json', 'r') as settingsfile:
             self.llrp_settings = json.load(settingsfile)
         settingsfile.close()
         self.rolling = False
