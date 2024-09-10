@@ -30,12 +30,45 @@ install_deps = [
     'sllurp>=2.0',
 ]
 
+long_description = """
+=========================================================================
+sllurp-gui is a QT based graphical interface to control LLRP RFID readers
+=========================================================================
+
+sllurp-gui is a GUI frontend for the `sllurp` client.
+sllurp is a high performance client and library for the Low Level Reader Protocol (LLRP) to control RFID readers.
+
+A recent version of sllurp (>= 2.0) is required to be able to run this GUI.
+
+The GUI relies on PyQt5, pyqtgraph and using Python 3.6 or higher is recommended.
+It has not been tested on any other OS than Linux.
+
+Please report any bug by filing an issue on the [sllurp-gui project Github](https://github.com/sllurp/sllurp-gui/)
+
+sllurp is distributed under version 3 of the GNU General Public License.  See
+``LICENSE.txt`` for details.
+
+
+**Run GUI**
+```
+sllurp-gui
+```
+
+# Authors
+
+    - Florent Viard (florent@sodria.com)
+    - Papapel
+    - Thijmen Ketel
+
+Project website:
+    https://github.com/sllurp/sllurp-gui
+"""
 
 setup(
     name='sllurp-gui',
     version=find_version('sllurp_gui', 'version.py'),
     description='RFID LLRP reader control graphical interface using sllurp',
-    long_description=read('README.md'),
+    long_description=long_description,
     author='Florent Viard',
     author_email='florent@sodria.com',
     maintainer="github.com/fviard, https://github.com/papapel, github.com/thijmenketel",
