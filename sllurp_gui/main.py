@@ -905,7 +905,7 @@ class Gui(QObject):
 
         self.dataplot.clear()
         self.curves.clear()
-        self.dataplot.legend.scene().removeItem(self.dataplot.legend)
+        self.dataplot.legend = None
         self.dataplot.addLegend()
 
         self.clear_tags_db()
@@ -1082,6 +1082,7 @@ class Gui(QObject):
     def graph_create(self):
         self.curves.clear()
         self.dataplot.setLabel('bottom', text='Time', units='ms')
+        self.dataplot.legend = None
         self.dataplot.addLegend()
         self.graph_restore_view()
 
@@ -1448,6 +1449,7 @@ class MainWindow(QMainWindow):
         # Create graph main dipslay
         graph_w = GraphicsLayoutWidget()
         graph_w.setBackground('w')
+
         dataplot = graph_w.addPlot()
 
         adv_graph_l.addLayout(button_layout, 1)
